@@ -1,0 +1,56 @@
+@import '@xterm/xterm/css/xterm.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --console-bg: #f8f9fa;
+  --console-surface: #ffffff;
+  --console-surface-alt: #f1f3f5;
+  --console-border: #d1d5db;
+  --console-text: #1a202c;
+  --console-text-secondary: #4a5568;
+  --console-text-muted: #718096;
+}
+
+.dark {
+  --console-bg: #0d1117;
+  --console-surface: #161b22;
+  --console-surface-alt: #1c2333;
+  --console-border: #30363d;
+  --console-text: #e6edf3;
+  --console-text-secondary: #8b949e;
+  --console-text-muted: #6e7681;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--console-bg);
+  color: var(--console-text);
+  overflow-x: hidden;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(140, 140, 140, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 140, 140, 0.5);
+}
+
+.xterm {
+  padding: 8px;
+}
