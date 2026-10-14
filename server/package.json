@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "tsx src/index.ts"
+    "build": "rm -rf dist && tsc",
+    "start": "node dist/server/src/index.js",
+    "start:dev": "tsx src/index.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",

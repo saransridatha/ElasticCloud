@@ -126,6 +126,15 @@ export class SimulatedSshServer {
       this.servers.delete(instanceId);
     }
   }
+
+  public stopAll(): void {
+    for (const [id, s] of this.servers.entries()) {
+      try {
+        s.close();
+      } catch {}
+    }
+    this.servers.clear();
+  }
 }
 
 export const simulatedSshServer = new SimulatedSshServer();

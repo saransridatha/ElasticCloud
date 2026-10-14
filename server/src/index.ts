@@ -7,7 +7,10 @@ import cors from 'cors';
 import { WebSocketServer, WebSocket } from 'ws';
 import url from 'url';
 
-import { getDatabase } from './db/schema';
+import path from 'path';
+import fs from 'fs';
+
+import { getDatabase, closeDatabase } from './db/schema';
 import { getAllInstances, createInstance, createVolume, getAllKeyPairs, createKeyPair } from './db';
 import { instancesRouter } from './routes/instances';
 import { keyPairsRouter } from './routes/keypairs';
@@ -24,13 +27,28 @@ import { simulatedSshServer } from './services/simulated-sshd';
 import type { Instance, Volume } from '@shared/types';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = parseInt(process.env.PORT || (process.env.NODE_ENV === 'production' ? '3000' : '3001'), 10);
+const HOST = process.env.HOST || '0.0.0.0';
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Routes
+// Health check endpoints for AWS Target Groups, ECS, and Kubernetes probes
+const healthHandler = (_req: express.Request, res: express.Response) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    runtime: computeDriver.isDockerAvailable() ? 'container' : 'simulation',
+    runtimeType: computeDriver.getRuntimeType(),
+    timestamp: new Date().toISOString(),
+  });
+};
+
+app.get('/api/health', healthHandler);
+app.get('/healthz', healthHandler);
+
+// API Routes
 app.use('/api/instances', instancesRouter);
 app.use('/api/keypairs', keyPairsRouter);
 app.use('/api/security-groups', securityGroupsRouter);
@@ -38,12 +56,48 @@ app.use('/api/volumes', volumesRouter);
 app.use('/api/amis', amisRouter);
 app.use('/api/dashboard', dashboardRouter);
 
-// Health check
-app.get('/api/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    runtime: computeDriver.isDockerAvailable() ? 'container' : 'simulation',
-    timestamp: new Date().toISOString(),
+// Static client UI serving for production container deployments
+function resolveClientDist(): string | null {
+  const candidates = [
+    process.env.CLIENT_DIST,
+    path.resolve(__dirname, '../../client/dist'),
+    path.resolve(__dirname, '../client/dist'),
+    path.resolve(process.cwd(), 'client/dist'),
+    path.resolve(process.cwd(), '../client/dist'),
+    '/app/client/dist',
+  ].filter(Boolean) as string[];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate) && fs.existsSync(path.join(candidate, 'index.html'))) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+const clientDist = resolveClientDist();
+if (clientDist) {
+  console.log(`[ElasticCloud] Serving production UI from: ${clientDist}`);
+  app.use(express.static(clientDist, { index: false }));
+
+  app.get('/', (_req, res) => {
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+
+  // Client-side SPA routing fallback
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/ws')) {
+      return next();
+    }
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
+
+// 404 handler for unmatched API routes
+app.all('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: `API route '${req.method} ${req.path}' not found`,
   });
 });
 
@@ -54,9 +108,9 @@ const wss = new WebSocketServer({ noServer: true });
 
 server.on('upgrade', (request, socket, head) => {
   const parsedUrl = url.parse(request.url || '', true);
-  const pathname = parsedUrl.pathname;
+  const pathname = parsedUrl.pathname || '';
 
-  if (pathname === '/ws/terminal' || pathname === '/ws/metrics') {
+  if (pathname.startsWith('/ws/terminal') || pathname.startsWith('/ws/metrics')) {
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit('connection', ws, request);
     });
@@ -216,15 +270,55 @@ getDatabase();
 seedInitialDataIfEmpty();
 telemetryService.start(5000);
 
-server.listen(PORT, () => {
+// Graceful Shutdown Handler for containers (Docker, ECS, Fargate, Kubernetes)
+let isShuttingDown = false;
+function gracefulShutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`\n[ElasticCloud] Received ${signal}. Initiating graceful shutdown...`);
+
+  // Fallback watchdog timer: force exit if cleanup takes longer than 5 seconds
+  const forceTimer = setTimeout(() => {
+    console.error('[ElasticCloud] Force shutdown timeout reached (5s). Terminating process.');
+    process.exit(1);
+  }, 5000);
+  forceTimer.unref();
+
+  // Close all active WebSocket connections
+  wss.clients.forEach((client) => {
+    try {
+      client.close(1001, 'Server shutting down');
+    } catch {}
+  });
+
+  // Stop background services
+  telemetryService.stop();
+  simulatedSshServer.stopAll();
+
+  // Close HTTP server and database
+  server.close(() => {
+    console.log('[ElasticCloud] HTTP server closed.');
+    closeDatabase();
+    console.log('[ElasticCloud] Shutdown complete. Exiting cleanly.');
+    process.exit(0);
+  });
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+server.listen(PORT, HOST, () => {
   console.log(`
 ╔═════════════════════════════════════════════════════════════════╗
 ║                      ElasticCloud Control Plane                 ║
 ║           AWS EC2 Cloud Console & Compute Orchestrator          ║
 ╚═════════════════════════════════════════════════════════════════╝
-  ► REST API:        http://localhost:${PORT}/api
-  ► WebSocket:       ws://localhost:${PORT}/ws/terminal & /ws/metrics
-  ► Engine Runtime:  ${computeDriver.isDockerAvailable() ? 'Container Socket Active (Podman/Docker)' : 'Graceful Simulation Engine'}
-  ► Database:        SQLite Active (data/elastic.db)
+  ► Server URL:      http://${HOST}:${PORT}
+  ► REST API:        http://${HOST}:${PORT}/api
+  ► Health Check:    http://${HOST}:${PORT}/api/health
+  ► WebSocket:       ws://${HOST}:${PORT}/ws/terminal & /ws/metrics
+  ► UI Mode:         ${clientDist ? `Production SPA (${clientDist})` : 'Development Proxy Mode'}
+  ► Engine Runtime:  ${computeDriver.isDockerAvailable() ? `Container Socket Active (${computeDriver.getRuntimeType()})` : 'Graceful Simulation Engine'}
+  ► Database:        SQLite Active (${process.env.DATA_DIR || 'default data directory'})
   `);
 });

@@ -1,0 +1,57 @@
+# ==============================================================================
+# ElasticCloud - Docker Compose Specification
+# Ready for Local Testing, EC2 Virtual Machines, and Docker Swarm
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  elasticcloud:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: elasticcloud:latest
+    container_name: elasticcloud-control-plane
+    restart: unless-stopped
+    ports:
+      # Primary HTTP/WS Web Console + API Gateway
+      - "3000:3000"
+      # Forwarded SSH ports for direct client terminal access (EC2 host mode)
+      - "2201-2210:2201-2210"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - DATA_DIR=/data
+      # Uncomment if running on an EC2 instance with Docker socket mounted:
+      # - CONTAINER_RUNTIME=docker
+    volumes:
+      # Persistent SQLite volume: persists instances, security groups, keys, volumes
+      - elastic_data:/data
+      # OPTIONAL FOR EC2: Mount host docker socket to enable real container micro-VMs
+      # If running on AWS Fargate or Kubernetes without socket access, keep commented
+      # (ElasticCloud will gracefully operate in realistic micro-VM simulation mode).
+      # - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  elastic_data:
+    name: elasticcloud_data

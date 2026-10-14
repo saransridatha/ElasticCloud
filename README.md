@@ -422,6 +422,25 @@ podman build -t elastic-alpine:3.20 -f server/src/docker/alpine.Dockerfile serve
 
 ---
 
+## 🚢 Production Container Deployment
+
+ElasticCloud is containerized and production-ready for **Docker, Docker Compose, AWS EC2, AWS ECS on Fargate, and Kubernetes**.
+
+```bash
+# Option 1: Docker Compose (Local or EC2)
+docker compose up -d
+
+# Option 2: Kubernetes (EKS / GKE / K3s)
+kubectl apply -k k8s/
+
+# Option 3: Automated AWS Fargate Deployment
+./aws/deploy-fargate.sh
+```
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for detailed guides on AWS Fargate, EC2 Docker socket provisioning, EFS persistence, Kubernetes ingress/probes, and environment variables.
+
+---
+
 ## 📜 License
 
 This project is licensed under the **MIT License**.

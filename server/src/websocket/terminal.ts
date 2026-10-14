@@ -3,7 +3,10 @@
 
 import { WebSocket } from 'ws';
 import * as pty from 'node-pty';
+import fs from 'fs';
+import path from 'path';
 import { getInstanceById } from '../db';
+import { computeDriver } from '../services/compute-driver';
 
 export function handleTerminalConnection(ws: WebSocket, instanceId: string): void {
   const instance = getInstanceById(instanceId);
@@ -45,7 +48,8 @@ export function handleTerminalConnection(ws: WebSocket, instanceId: string): voi
     // If running in container with containerId
     if (instance.containerId && !instance.containerId.startsWith('sim-')) {
       const shellCmd = instance.amiId.includes('alpine') ? '/bin/sh' : '/bin/bash';
-      ptyProcess = pty.spawn('podman', ['exec', '-it', '-u', osUser, '-w', `/home/${osUser}`, instance.containerId, shellCmd], {
+      const runtimeCmd = computeDriver.getRuntimeCommand();
+      ptyProcess = pty.spawn(runtimeCmd, ['exec', '-it', '-u', osUser, '-w', `/home/${osUser}`, instance.containerId, shellCmd], {
         name: 'xterm-256color',
         cols: 80,
         rows: 24,
@@ -53,8 +57,6 @@ export function handleTerminalConnection(ws: WebSocket, instanceId: string): voi
       });
     } else {
       // Simulation mode: spawn inside isolated instance sandbox directory
-      const path = require('path');
-      const fs = require('fs');
       const sandboxDir = path.join('/tmp', 'elastic-sandboxes', instance.id, 'home', osUser);
       fs.mkdirSync(sandboxDir, { recursive: true });
 
@@ -72,7 +74,9 @@ export function handleTerminalConnection(ws: WebSocket, instanceId: string): voi
         );
       }
 
-      ptyProcess = pty.spawn('/bin/bash', ['--norc'], {
+      const shell = fs.existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh';
+      const shellArgs = shell === '/bin/bash' ? ['--norc'] : [];
+      ptyProcess = pty.spawn(shell, shellArgs, {
         name: 'xterm-256color',
         cols: 80,
         rows: 24,

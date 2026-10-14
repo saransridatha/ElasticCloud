@@ -6,9 +6,9 @@ import path from 'path';
 import fs from 'fs';
 import { generateRuleId } from '../services/id-generator';
 
-const DB_DIR = path.resolve(__dirname, '..', '..', 'data');
+const DB_DIR = process.env.DATA_DIR || path.resolve(__dirname, '..', '..', 'data');
 const LEGACY_DB_PATH = path.join(DB_DIR, 'nimbus.db');
-const DB_PATH = path.join(DB_DIR, 'elastic.db');
+const DB_PATH = process.env.DB_PATH || path.join(DB_DIR, 'elastic.db');
 
 let db: Database.Database;
 
@@ -32,6 +32,17 @@ export function getDatabase(): Database.Database {
     initializeSchema(db);
   }
   return db;
+}
+
+export function closeDatabase(): void {
+  if (db && db.open) {
+    try {
+      db.close();
+      console.log('[ElasticCloud] Database closed cleanly.');
+    } catch (err: any) {
+      console.warn('[ElasticCloud] Error closing database:', err.message);
+    }
+  }
 }
 
 function initializeSchema(db: Database.Database): void {

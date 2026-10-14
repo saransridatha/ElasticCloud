@@ -1,0 +1,108 @@
+{
+  "family": "elasticcloud-control-plane-ec2",
+  "networkMode": "bridge",
+  "requiresCompatibilities": [
+    "EC2"
+  ],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::123456789012:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "elasticcloud",
+      "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/elasticcloud:latest",
+      "essential": true,
+      "user": "0:0",
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "hostPort": 3000,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 2201,
+          "hostPort": 2201,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 2202,
+          "hostPort": 2202,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 2203,
+          "hostPort": 2203,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "HOST",
+          "value": "0.0.0.0"
+        },
+        {
+          "name": "DATA_DIR",
+          "value": "/data"
+        },
+        {
+          "name": "CONTAINER_RUNTIME",
+          "value": "docker"
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "elastic-data",
+          "containerPath": "/data",
+          "readOnly": false
+        },
+        {
+          "sourceVolume": "docker-socket",
+          "containerPath": "/var/run/docker.sock",
+          "readOnly": false
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/elasticcloud",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ec2",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:3000/api/health || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 15
+      }
+    }
+  ],
+  "volumes": [
+    {
+      "name": "elastic-data",
+      "host": {
+        "sourcePath": "/var/lib/elasticcloud/data"
+      }
+    },
+    {
+      "name": "docker-socket",
+      "host": {
+        "sourcePath": "/var/run/docker.sock"
+      }
+    }
+  ]
+}

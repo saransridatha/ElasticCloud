@@ -1,0 +1,33 @@
+# Dependencies
+node_modules
+client/node_modules
+server/node_modules
+
+# Build artifacts
+client/dist
+server/dist
+dist
+
+# SQLite database and WAL files
+server/data/*.db
+server/data/*.db-wal
+server/data/*.db-shm
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# Version control
+.git
+.gitignore
+.github
+
+# Temporary and log files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+.system_generated
+.vscode
+.idea
+/tmp

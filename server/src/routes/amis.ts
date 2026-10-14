@@ -2,7 +2,7 @@
 // AMI Catalog routes
 
 import { Router, Request, Response } from 'express';
-import { AVAILABLE_AMIS } from '@shared/types';
+import { AVAILABLE_AMIS } from '../../../shared/types';
 
 export const amisRouter = Router();
 

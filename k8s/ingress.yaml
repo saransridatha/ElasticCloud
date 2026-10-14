@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: elasticcloud-ingress
+  namespace: elasticcloud
+  labels:
+    app.kubernetes.io/name: elasticcloud
+  annotations:
+    # NGINX Ingress Controller WebSocket and buffer tuning
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "elasticcloud-service"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    # AWS Load Balancer Controller (ALB) annotations (uncomment if using AWS ALB)
+    # kubernetes.io/ingress.class: alb
+    # alb.ingress.kubernetes.io/scheme: internet-facing
+    # alb.ingress.kubernetes.io/target-type: ip
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: elasticcloud-service
+                port:
+                  number: 80

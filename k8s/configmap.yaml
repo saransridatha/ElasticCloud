@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elasticcloud-config
+  namespace: elasticcloud
+  labels:
+    app.kubernetes.io/name: elasticcloud
+    app.kubernetes.io/component: control-plane
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  HOST: "0.0.0.0"
+  DATA_DIR: "/data"

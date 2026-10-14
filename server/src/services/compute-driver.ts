@@ -19,6 +19,8 @@ export interface ComputeStats {
 export class ComputeDriver {
   private docker: any = null;
   private dockerAvailable = false;
+  private runtimeType: 'docker' | 'podman' | 'none' = 'none';
+  private runtimeCommand: string = 'podman';
   private simulatedInstances = new Map<string, {
     state: InstanceState;
     baseCpu: number;
@@ -33,9 +35,11 @@ export class ComputeDriver {
 
   private detectContainerRuntime(): void {
     const candidateSockets = [
-      `/run/user/${process.getuid ? process.getuid() : 1000}/podman/podman.sock`,
-      '/var/run/docker.sock',
       process.env.DOCKER_HOST,
+      `/run/user/${process.getuid ? process.getuid() : 1000}/podman/podman.sock`,
+      '/var/run/podman/podman.sock',
+      '/run/podman/podman.sock',
+      '/var/run/docker.sock',
     ].filter(Boolean) as string[];
 
     for (const sock of candidateSockets) {
@@ -45,7 +49,15 @@ export class ComputeDriver {
           const d = new Docker({ socketPath });
           this.docker = d;
           this.dockerAvailable = true;
-          console.log(`[ComputeDriver] Connected to container runtime socket: ${socketPath}`);
+          if (process.env.CONTAINER_RUNTIME) {
+            this.runtimeType = process.env.CONTAINER_RUNTIME.toLowerCase() as 'docker' | 'podman';
+          } else if (sock.includes('docker')) {
+            this.runtimeType = 'docker';
+          } else {
+            this.runtimeType = 'podman';
+          }
+          this.runtimeCommand = this.runtimeType === 'docker' ? 'docker' : 'podman';
+          console.log(`[ComputeDriver] Connected to container runtime (${this.runtimeType}) socket: ${socketPath}`);
           return;
         } catch (e: any) {
           console.warn(`[ComputeDriver] Failed to connect to ${sock}:`, e.message);
@@ -53,11 +65,20 @@ export class ComputeDriver {
       }
     }
 
+    this.runtimeType = 'none';
     console.log('[ComputeDriver] No container socket found; running in SIMULATION mode.');
   }
 
   public isDockerAvailable(): boolean {
     return this.dockerAvailable;
+  }
+
+  public getRuntimeType(): 'docker' | 'podman' | 'none' {
+    return this.runtimeType;
+  }
+
+  public getRuntimeCommand(): string {
+    return this.runtimeCommand;
   }
 
   /**
