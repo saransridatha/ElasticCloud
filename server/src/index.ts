@@ -27,7 +27,7 @@ import { simulatedSshServer } from './services/simulated-sshd';
 import type { Instance, Volume } from '@shared/types';
 
 const app = express();
-const PORT = parseInt(process.env.PORT || (process.env.NODE_ENV === 'production' ? '3000' : '3001'), 10);
+const PORT = parseInt(process.env.PORT || (process.env.NODE_ENV === 'production' ? '3000' : '3002'), 10);
 const HOST = process.env.HOST || '0.0.0.0';
 
 // Middleware
